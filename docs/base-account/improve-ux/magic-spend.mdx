@@ -1,5 +1,6 @@
 ---
-title: "MagicSpend"
+title: "Use Coinbase Balances Onchain"
+description: "How to use Coinbase balances onchain with Base Account"
 ---
 
 With MagicSpend, Base Account users can use their Coinbase balances onchain. This means users can easily start using onchain apps without needing to onramp funds into their wallet.
@@ -12,9 +13,6 @@ If your app supports Base Account, it should not assume it knows the full balanc
 
 MagicSpend makes onboarding smoother by letting users pay gas or send funds even when their onchain wallet balance is **zero**. Your interface should therefore _never_ disable an action just because the onchain balance is insufficient.
 
----
-
-## 
 
 1. Ensure you have the user’s `address` stored in your component state (from your wallet connection flow).
 
