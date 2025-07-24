@@ -1,102 +1,17 @@
 ---
-title: "NextJS with Wagmi"
+title: "Sign in with Base"
+description: "Implement Base Account authentication using Wagmi hooks"
 ---
 
-Learn how to integrate Base Account seamlessly with Wagmi for React applications, enabling Base Account SDK functionality with familiar React hooks.
+Learn how to implement Sign in with Base using Wagmi hooks to connect users to your application.
 
-## Overview
+## Prerequisites
 
-[Wagmi](https://wagmi.sh/) is a collection of React hooks for Ethereum Virtual Machine (EVM) compatible networks that makes it easy to work with wallets, contracts, transactions, and signing. Base Account integrates perfectly with Wagmi, allowing you to use all your familiar hooks.
+Make sure you have [set up Wagmi with Base Account](/base-account/framework-integrations/wagmi/setup) before following this guide.
 
-### What you'll achieve
+## Connection Component
 
-By the end of this guide, you will:
-
-- Set up Wagmi with Base Account connector
-- Use standard Wagmi hooks with Base Account
-- Implement advanced Base Account features through Wagmi
-- Work with Base Account-specific capabilities
-
-## Installation
-
-After [creating a new Next.js project](https://nextjs.org/docs/app/getting-started/installation), install the required dependencies:
-
-<CodeGroup>
-```bash npm
-npm install wagmi viem @base-org/account
-```
-
-```bash pnpm
-pnpm add wagmi viem @base-org/account
-```
-
-```bash yarn
-yarn add wagmi viem @base-org/account
-```
-
-```bash bun
-bun add wagmi viem @base-org/account
-```
-</CodeGroup>
-
-<Tip>
-You can also use the command line `npm create wagmi@latest` to create a new full Wagmi project.
-</Tip>
-
-## Basic Setup
-
-### 1. Configure Wagmi with Base Account
-
-Create your Wagmi configuration with the Base Account connector configured for Base Account:
-
-```typescript
-// config/wagmi.ts
-import { http, createConfig } from 'wagmi'
-import { base } from 'wagmi/chains'
-import { baseAccount } from 'wagmi/connectors'
-
-
-export const config = createConfig({
-  chains: [base],
-  connectors: [
-    baseAccount({
-      appName: 'Base App',
-    })
-  ],
-  transports: {
-    [base.id]: http()
-  },
-})
-```
-
-### 2. Wrap Your App
-
-Wrap your application with the Wagmi provider:
-
-```tsx
-// app/layout.tsx or pages/_app.tsx
-import { WagmiProvider } from 'wagmi'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { config } from './config/wagmi'
-
-const queryClient = new QueryClient()
-
-export default function App({ children }: { children: React.ReactNode }) {
-  return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
-    </WagmiProvider>
-  )
-}
-```
-
-## Basic Usage
-
-### Connection Component
-
-Create a component to handle wallet connection:
+Create a component to handle wallet connection with Base Account:
 
 ```tsx
 // components/ConnectWallet.tsx
@@ -138,7 +53,7 @@ export function ConnectWallet() {
 }
 ```
 
-### Send one or multiple transactions
+## Basic Transaction Handling
 
 Use Wagmi's contract hooks with Base Account for seamless smart contract interaction:
 
@@ -262,60 +177,47 @@ export function ContractInteraction() {
   )
 }
 ```
-## Advanced Usage
 
-For additional features, you can always access the Base Account provider directly, like so:
+## Advanced Features
+
+For advanced Base Account features like batch transactions, you can access the Base Account provider directly:
 
 ```tsx
 import { useConnector } from 'wagmi'
 import { parseEther, encodeFunctionData } from 'viem'
 
-export function BatchTransactions() {
+export function AdvancedFeatures() {
   const { address } = useAccount()
   const connector = useConnector()
   const [isLoading, setIsLoading] = useState(false)
 
-  const sendBatchTransactions = async () => {
+  const accessProvider = async () => {
     if (!connector || !address) return
 
-    setIsLoading(true)
-    try {
-      // Create multiple calls
-      const calls = [
-        {
-          to: '0x...' as `0x${string}`,
-          value: parseEther('0.001'),
-          data: '0x' as `0x${string}`
-        },
-        {
-          to: '0x...' as `0x${string}`,
-          value: parseEther('0.002'),
-          data: '0x' as `0x${string}`
-        }
-      ]
+    // Access the Base Account provider directly
+    const provider = connector.provider
+    
+    // Use provider for advanced RPC methods
+    const result = await provider?.request({
+      method: 'wallet_sendCalls',
+      params: [/* ... */]
+    })
 
-      // Send batch transaction using connector
-      const result = await connector.provider?.request({
-        method: 'wallet_sendCalls',
-        params: [{
-          version: '1.0',
-          chainId: `0x${Number(8453).toString(16)}`, // Base mainnet
-          from: address,
-          calls: calls
-        }]
-      })
-
-      console.log('Batch transaction result:', result)
-    } catch (error) {
-      console.error('Batch transaction failed:', error)
-    } finally {
-      setIsLoading(false)
-    }
+    return result
   }
+
+  return (
+    <button onClick={accessProvider}>
+      Access Advanced Features
+    </button>
+  )
+}
 ```
 
-Once you have access to the Base Account provider,
-you can use it to call specific RPC methods as shown in the [reference](/base-account/reference/core/getProvider).
+## Next Steps
+
+- [Learn about Sub Accounts with Wagmi](/base-account/framework-integrations/wagmi/sub-accounts)
+- [Explore Base Account RPC methods](/base-account/reference/core/getProvider)
 
 import PolicyBanner from "/snippets/PolicyBanner.mdx";
 

@@ -9,20 +9,14 @@
   },
   "favicon": "/logo/favicon.png",
   "contextual": {
-    "options": [
-      "copy",
-      "chatgpt",
-      "claude"
-    ]
+    "options": ["copy", "chatgpt", "claude"]
   },
   "api": {
     "playground": {
       "display": "simple"
     },
     "examples": {
-      "languages": [
-        "javascript"
-      ]
+      "languages": ["javascript"]
     }
   },
   "navigation": {
@@ -32,16 +26,11 @@
         "groups": [
           {
             "group": "Introduction",
-            "pages": [
-              "get-started/base"
-            ]
+            "pages": ["get-started/base"]
           },
           {
             "group": "Browse by",
-            "pages": [
-              "get-started/products",
-              "get-started/use-cases"
-            ]
+            "pages": ["get-started/products", "get-started/use-cases"]
           },
           {
             "group": "Quickstart",
@@ -62,10 +51,7 @@
           },
           {
             "group": "Build with AI",
-            "pages": [
-              "get-started/ai-prompting",
-              "get-started/prompt-library"
-            ]
+            "pages": ["get-started/ai-prompting", "get-started/prompt-library"]
           }
         ],
         "global": {
@@ -187,9 +173,7 @@
         "groups": [
           {
             "group": "Introduction",
-            "pages": [
-              "base-account/overview/what-is-base-account"
-            ]
+            "pages": ["base-account/overview/what-is-base-account"]
           },
           {
             "group": "Quickstart",
@@ -203,59 +187,81 @@
             "pages": [
               "base-account/guides/authenticate-users",
               "base-account/guides/accept-payments",
+              "base-account/guides/batch-transactions",
               "base-account/improve-ux/sponsor-gas/paymasters",
+              "base-account/improve-ux/sub-accounts",
+              "base-account/improve-ux/spend-permissions",
+              "base-account/improve-ux/magic-spend",
               "base-account/improve-ux/sponsor-gas/erc20-paymasters",
-              {
-                "group": "Improve UX",
-                "pages": [
-                  "base-account/improve-ux/sub-accounts",
-                  "base-account/improve-ux/spend-permissions",
-                  "base-account/improve-ux/batch-transactions",
-                  "base-account/improve-ux/magic-spend"
-                ]
-              }
+              "base-account/guides/sign-typed-data"
             ]
           },
           {
             "group": "Framework Integrations",
             "pages": [
-              "base-account/framework-integrations/nextjs-with-wagmi",
-              "base-account/framework-integrations/nextjs-with-dynamic",
-              "base-account/framework-integrations/nextjs-with-privy"
+              {
+                "group": "Wagmi",
+                "pages": [
+                  "base-account/framework-integrations/wagmi/setup",
+                  "base-account/framework-integrations/wagmi/sign-in-with-base",
+                  "base-account/framework-integrations/wagmi/sub-accounts"
+                ]
+              },
+              {
+                "group": "Privy",
+                "pages": [
+                  "base-account/framework-integrations/privy/setup",
+                  "base-account/framework-integrations/privy/sign-in-with-base",
+                  "base-account/framework-integrations/privy/sub-accounts"
+                ]
+              },
+              "base-account/framework-integrations/nextjs-with-dynamic"
             ]
           },
           {
             "group": "Reference",
             "pages": [
+              "base-account/reference/base-pay/pay",
+              "base-account/reference/base-pay/getPaymentStatus",
+              "base-account/reference/core/getProvider",
+              "base-account/reference/core/sdk-utilities",
               {
-                "group": "Base Pay",
+                "group": "Provider",
                 "pages": [
-                  "base-account/reference/base-pay/pay",
-                  "base-account/reference/base-pay/getPaymentStatus"
+                  "base-account/reference/core/provider-rpc-methods/request-overview",
+                  "base-account/reference/core/provider-rpc-methods/wallet_connect",
+                  "base-account/reference/core/provider-rpc-methods/wallet_getSubAccounts",
+                  "base-account/reference/core/provider-rpc-methods/coinbase_fetchPermissions",
+                  "base-account/reference/core/provider-rpc-methods/standard-rpc-methods"
                 ]
               },
               {
-                "group": "Core",
+                "group": "EIP-5792 Capabilities",
                 "pages": [
-                  "base-account/reference/core/getProvider",
-                  "base-account/reference/core/sdk-utilities",
                   {
-                    "group": "Provider RPC Methods",
+                    "group": "Overview",
                     "pages": [
-                      "base-account/reference/core/provider-rpc-methods/request-overview",
-                      "base-account/reference/core/provider-rpc-methods/wallet_sendCalls",
-                      "base-account/reference/core/provider-rpc-methods/wallet_connect",
-                      "base-account/reference/core/provider-rpc-methods/wallet_addSubAccount",
-                      "base-account/reference/core/provider-rpc-methods/wallet_getSubAccounts",
-                      "base-account/reference/core/provider-rpc-methods/coinbase_fetchPermissions",
-                      "base-account/reference/core/provider-rpc-methods/standard-rpc-methods"
+                      {
+                        "group": "Capabilities were introduced in 5792 and extended with wallet_connect and wallet_sign. Some capabilities cannot yet be used across all of these",
+                        "pages": []
+                      }
                     ]
                   },
                   {
-                    "group": "Capabilities",
+                    "group": "dataCallback",
                     "pages": [
                       "base-account/reference/core/capabilities/datacallback"
                     ]
+                  },
+                  {
+                    "group": "addSubAccount",
+                    "pages": [
+                      "base-account/reference/core/provider-rpc-methods/wallet_addSubAccount"
+                    ]
+                  },
+                  {
+                    "group": "SIWE",
+                    "pages": []
                   }
                 ]
               },
@@ -378,27 +384,19 @@
             "pages": [
               {
                 "group": "Appchain",
-                "pages": [
-                  "onchainkit/appchain/bridge"
-                ]
+                "pages": ["onchainkit/appchain/bridge"]
               },
               {
                 "group": "Buy",
-                "pages": [
-                  "onchainkit/buy/buy"
-                ]
+                "pages": ["onchainkit/buy/buy"]
               },
               {
                 "group": "Checkout",
-                "pages": [
-                  "onchainkit/checkout/checkout"
-                ]
+                "pages": ["onchainkit/checkout/checkout"]
               },
               {
                 "group": "Earn",
-                "pages": [
-                  "onchainkit/earn/earn"
-                ]
+                "pages": ["onchainkit/earn/earn"]
               },
               {
                 "group": "Fund",
@@ -479,15 +477,11 @@
               },
               {
                 "group": "Token",
-                "pages": [
-                  "onchainkit/api/get-tokens"
-                ]
+                "pages": ["onchainkit/api/get-tokens"]
               },
               {
                 "group": "Wallet",
-                "pages": [
-                  "onchainkit/api/get-portfolios"
-                ]
+                "pages": ["onchainkit/api/get-portfolios"]
               }
             ]
           },
@@ -547,9 +541,7 @@
               },
               {
                 "group": "Token",
-                "pages": [
-                  "onchainkit/token/format-amount"
-                ]
+                "pages": ["onchainkit/token/format-amount"]
               },
               {
                 "group": "Wallet",
@@ -653,27 +645,20 @@
           },
           {
             "group": "Build with AI",
-            "pages": [
-              "cookbook/ai-prompting",
-              "cookbook/base-builder-mcp"
-            ]
+            "pages": ["cookbook/ai-prompting", "cookbook/base-builder-mcp"]
           }
         ]
       },
       {
         "tab": "Showcase",
-        "pages": [
-          "showcase"
-        ]
+        "pages": ["showcase"]
       },
       {
         "tab": "Learn",
         "groups": [
           {
             "group": "Building Onchain",
-            "pages": [
-              "learn/welcome"
-            ]
+            "pages": ["learn/welcome"]
           },
           {
             "group": "Onchain Concepts",
@@ -762,9 +747,7 @@
               },
               {
                 "group": "Deploy with Fleek",
-                "pages": [
-                  "learn/onchain-app-development/deploy-with-fleek"
-                ]
+                "pages": ["learn/onchain-app-development/deploy-with-fleek"]
               }
             ]
           },
@@ -914,15 +897,11 @@
               },
               {
                 "group": "Events",
-                "pages": [
-                  "learn/events/hardhat-events-sbs"
-                ]
+                "pages": ["learn/events/hardhat-events-sbs"]
               },
               {
                 "group": "Address and Payable",
-                "pages": [
-                  "learn/address-and-payable/address-and-payable"
-                ]
+                "pages": ["learn/address-and-payable/address-and-payable"]
               }
             ]
           },
@@ -1058,9 +1037,7 @@
           },
           {
             "group": "Exercise Contracts",
-            "pages": [
-              "learn/exercise-contracts"
-            ]
+            "pages": ["learn/exercise-contracts"]
           }
         ]
       }
@@ -2197,11 +2174,19 @@
     {
       "source": "/wallet-app/chat-agents",
       "destination": "/wallet-app/guides/chat-agents"
+    },
+    {
+      "source": "/base-account/framework-integrations/nextjs-with-wagmi",
+      "destination": "/base-account/framework-integrations/wagmi/setup"
+    },
+    {
+      "source": "/base-account/framework-integrations/nextjs-with-privy",
+      "destination": "/base-account/framework-integrations/privy/setup"
     }
   ],
   "integrations": {
     "ga4": {
-        "measurementId": "G-TKCM02YFWN"
+      "measurementId": "G-TKCM02YFWN"
     }
-}
+  }
 }
