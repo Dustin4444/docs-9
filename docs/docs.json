@@ -237,9 +237,7 @@
               {
                 "group": "EIP-5792 Capabilities",
                 "pages": [
-                  "base-account/reference/core/capabilities/datacallback",
-                  "base-account/reference/core/capabilities/addSubAccount",
-                  "base-account/reference/core/capabilities/siwe"
+                  "base-account/reference/core/capabilities/datacallback"
                 ]
               },
               {
