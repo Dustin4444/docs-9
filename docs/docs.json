@@ -187,7 +187,7 @@
             "pages": [
               "base-account/guides/authenticate-users",
               "base-account/guides/accept-payments",
-              "base-account/guides/batch-transactions",
+              "base-account/improve-ux/batch-transactions",
               "base-account/improve-ux/sponsor-gas/paymasters",
               "base-account/improve-ux/sub-accounts",
               "base-account/improve-ux/spend-permissions",
@@ -211,7 +211,6 @@
                 "group": "Privy",
                 "pages": [
                   "base-account/framework-integrations/privy/setup",
-                  "base-account/framework-integrations/privy/sign-in-with-base",
                   "base-account/framework-integrations/privy/sub-accounts"
                 ]
               },
@@ -238,31 +237,9 @@
               {
                 "group": "EIP-5792 Capabilities",
                 "pages": [
-                  {
-                    "group": "Overview",
-                    "pages": [
-                      {
-                        "group": "Capabilities were introduced in 5792 and extended with wallet_connect and wallet_sign. Some capabilities cannot yet be used across all of these",
-                        "pages": []
-                      }
-                    ]
-                  },
-                  {
-                    "group": "dataCallback",
-                    "pages": [
-                      "base-account/reference/core/capabilities/datacallback"
-                    ]
-                  },
-                  {
-                    "group": "addSubAccount",
-                    "pages": [
-                      "base-account/reference/core/provider-rpc-methods/wallet_addSubAccount"
-                    ]
-                  },
-                  {
-                    "group": "SIWE",
-                    "pages": []
-                  }
+                  "base-account/reference/core/capabilities/datacallback",
+                  "base-account/reference/core/capabilities/addSubAccount",
+                  "base-account/reference/core/capabilities/siwe"
                 ]
               },
               {

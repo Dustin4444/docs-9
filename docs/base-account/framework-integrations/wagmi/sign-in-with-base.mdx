@@ -1,176 +1,145 @@
 ---
 title: "Sign in with Base"
-description: "Implement Base Account authentication using Wagmi hooks"
+description: "Implement Base Account authentication using the proper SIWE flow with Wagmi"
 ---
 
-Learn how to implement Sign in with Base using Wagmi hooks to connect users to your application.
+Learn how to implement Sign in with Base using Wagmi by accessing the Base Account provider and following the proper SIWE (Sign-In With Ethereum) authentication flow.
 
 ## Prerequisites
 
 Make sure you have [set up Wagmi with Base Account](/base-account/framework-integrations/wagmi/setup) before following this guide.
 
-## Connection Component
+## Overview
 
-Create a component to handle wallet connection with Base Account:
+To implement Sign in with Base with Wagmi, you need to:
+
+1. Get the Base Account connector from Wagmi
+2. Access the underlying provider from the connector
+3. Use `wallet_connect` with `signInWithEthereum` capabilities
+4. Verify the signature on your backend
+
+This follows the same flow as shown in the [authenticate users guide](/base-account/guides/authenticate-users), but integrates with Wagmi's connector system.
+
+## Implementation
+
+### 1. Basic Sign In Component
+
+Create a component that handles the complete authentication flow:
 
 ```tsx
-// components/ConnectWallet.tsx
-import { useAccount, useConnect, useDisconnect } from 'wagmi'
+// components/SignInWithBase.tsx
+import { useState } from 'react'
+import { useConnect, useAccount, useDisconnect } from 'wagmi'
+import { baseAccount } from 'wagmi/connectors'
 
-export function ConnectWallet() {
-  const { address, isConnected } = useAccount()
-  const { connect, connectors, isPending } = useConnect()
+export function SignInWithBase() {
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { isConnected, address } = useAccount()
+  const { connectAsync, connectors } = useConnect()
   const { disconnect } = useDisconnect()
+
+  // Find the Base Account connector
+  const baseAccountConnector = connectors.find(
+    connector => connector.id === 'baseAccountWallet'
+  )
+
+  const handleSignIn = async () => {
+    if (!baseAccountConnector) {
+      setError('Base Account connector not found')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      // 1. Generate or fetch nonce
+      const nonce = window.crypto.randomUUID().replace(/-/g, '')
+      // OR fetch from your backend:
+      // const nonce = await fetch('/auth/nonce').then(r => r.text())
+
+      // 2. Connect and get the provider
+      const result = await connectAsync({ connector: baseAccountConnector })
+      const provider = await baseAccountConnector.getProvider()
+
+      // 3. Use wallet_connect with signInWithEthereum capabilities
+      const authResult = await provider.request({
+        method: 'wallet_connect',
+        params: [{
+          version: '1',
+          capabilities: {
+            signInWithEthereum: { 
+              nonce, 
+              chainId: '0x2105' // Base Mainnet - 8453
+            }
+          }
+        }]
+      })
+
+      const { accounts } = authResult
+      const { address, capabilities } = accounts[0]
+      const { message, signature } = capabilities.signInWithEthereum
+
+      // 4. Verify signature on your backend
+      const response = await fetch('/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, message, signature })
+      })
+
+      if (!response.ok) {
+        throw new Error('Authentication failed')
+      }
+
+      const authData = await response.json()
+      console.log('Authentication successful:', authData)
+      
+      // Handle successful authentication (e.g., redirect, update state)
+      
+    } catch (err: any) {
+      console.error('Sign in failed:', err)
+      setError(err.message || 'Sign in failed')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSignOut = () => {
+    disconnect()
+    // Clear any auth state in your app
+  }
 
   if (isConnected) {
     return (
       <div className="flex items-center gap-4">
-        <span>Connected: {address}</span>
-        <button 
-          onClick={() => disconnect()}
-          className="px-4 py-2 bg-red-500 text-white rounded"
+        <div className="flex flex-col">
+          <span className="text-sm text-gray-600">Connected as:</span>
+          <span className="font-mono text-sm">{address}</span>
+        </div>
+        <button
+          onClick={handleSignOut}
+          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
         >
-          Disconnect
+          Sign Out
         </button>
       </div>
     )
   }
 
   return (
-    <div>
-      {connectors.map((connector) => (
-        <button
-          key={connector.uid}
-          onClick={() => connect({ connector })}
-          disabled={isPending}
-          className="px-4 py-2 bg-blue-500 text-white rounded"
-        >
-          {isPending ? 'Connecting...' : `Connect with ${connector.name}`}
-        </button>
-      ))}
-    </div>
-  )
-}
-```
-
-## Basic Transaction Handling
-
-Use Wagmi's contract hooks with Base Account for seamless smart contract interaction:
-
-```tsx
-// components/ContractInteraction.tsx
-import { useState } from 'react'
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { parseUnits } from 'viem'
-
-// ERC-20 Token ABI (simplified)
-const tokenAbi = [
-  {
-    name: 'balanceOf',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-  {
-    name: 'transfer',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'to', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    outputs: [{ name: '', type: 'bool' }],
-  },
-] as const
-
-const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' // USDC on Base
-
-export function ContractInteraction() {
-  const [recipient, setRecipient] = useState('')
-  const [amount, setAmount] = useState('')
-
-  // Read contract data
-  const { data: balance, refetch: refetchBalance } = useReadContract({
-    address: USDC_ADDRESS,
-    abi: tokenAbi,
-    functionName: 'balanceOf',
-    args: ['0x...'], // User's address
-  })
-
-  // Write to contract
-  const { 
-    data: hash, 
-    writeContract,
-    isPending: isWriting 
-  } = useWriteContract()
-
-  const { 
-    isLoading: isConfirming,
-    isSuccess: isConfirmed 
-  } = useWaitForTransactionReceipt({ hash })
-
-  const handleTransfer = () => {
-    if (!recipient || !amount) return
-
-    writeContract({
-      address: USDC_ADDRESS,
-      abi: tokenAbi,
-      functionName: 'transfer',
-      args: [recipient as `0x${string}`, parseUnits(amount, 6)], // USDC has 6 decimals
-    })
-  }
-
-  return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-semibold">USDC Balance</h3>
-        <p>{balance ? (Number(balance) / 1000000).toFixed(2) : '0'} USDC</p>
-        <button 
-          onClick={() => refetchBalance()}
-          className="px-3 py-1 bg-gray-500 text-white rounded text-sm"
-        >
-          Refresh
-        </button>
-      </div>
-
-      <div>
-        <label className="block mb-2">Recipient:</label>
-        <input 
-          type="text" 
-          value={recipient}
-          onChange={(e) => setRecipient(e.target.value)}
-          className="w-full p-2 border rounded"
-          placeholder="0x..."
-        />
-      </div>
-
-      <div>
-        <label className="block mb-2">Amount (USDC):</label>
-        <input 
-          type="number" 
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-full p-2 border rounded"
-          placeholder="10.50"
-          step="0.01"
-        />
-      </div>
-
-      <button 
-        onClick={handleTransfer}
-        disabled={isWriting || isConfirming || !recipient || !amount}
-        className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+      <button
+        onClick={handleSignIn}
+        disabled={isLoading || !baseAccountConnector}
+        className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isWriting ? 'Preparing...' : isConfirming ? 'Confirming...' : 'Transfer USDC'}
+        {isLoading ? 'Signing in...' : 'Sign in with Base'}
       </button>
-
-      {hash && (
-        <div>
-          <div>Transaction: {hash}</div>
-          {isConfirmed && (
-            <div className="text-green-600">Transfer completed!</div>
-          )}
+      
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700">
+          {error}
         </div>
       )}
     </div>
@@ -178,46 +147,206 @@ export function ContractInteraction() {
 }
 ```
 
-## Advanced Features
+### 2. Backend Verification
 
-For advanced Base Account features like batch transactions, you can access the Base Account provider directly:
+Set up your backend to verify the signatures (following the authenticate users guide):
 
-```tsx
-import { useConnector } from 'wagmi'
-import { parseEther, encodeFunctionData } from 'viem'
+```ts
+// pages/api/auth/nonce.ts (optional - you can generate client-side)
+export default function handler(req: any, res: any) {
+  const nonce = crypto.randomBytes(16).toString('hex')
+  // Store nonce in session/database to prevent reuse
+  res.json({ nonce })
+}
+```
 
-export function AdvancedFeatures() {
-  const { address } = useAccount()
-  const connector = useConnector()
-  const [isLoading, setIsLoading] = useState(false)
+```ts
+// pages/api/auth/verify.ts
+import { createPublicClient, http } from 'viem'
+import { base } from 'viem/chains'
 
-  const accessProvider = async () => {
-    if (!connector || !address) return
+const client = createPublicClient({ 
+  chain: base, 
+  transport: http() 
+})
 
-    // Access the Base Account provider directly
-    const provider = connector.provider
-    
-    // Use provider for advanced RPC methods
-    const result = await provider?.request({
-      method: 'wallet_sendCalls',
-      params: [/* ... */]
+export default async function handler(req: any, res: any) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const { address, message, signature } = req.body
+
+  try {
+    // 1. Verify the signature (automatically handles ERC-6492 for undeployed wallets)
+    const isValid = await client.verifyMessage({ 
+      address, 
+      message, 
+      signature 
     })
 
-    return result
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid signature' })
+    }
+
+    // 2. Create session/JWT here
+    // const token = jwt.sign({ address }, process.env.JWT_SECRET)
+    
+    res.json({ 
+      success: true, 
+      address,
+      // token 
+    })
+  } catch (error) {
+    console.error('Verification error:', error)
+    res.status(500).json({ error: 'Verification failed' })
+  }
+}
+```
+
+### 3. Using the Pre-built Button Component
+
+You can also use the official Base Account UI button component:
+
+```tsx
+// components/SignInButton.tsx
+import { SignInWithBaseButton } from '@base-org/account-ui/react'
+import { useConnect } from 'wagmi'
+
+export function SignInButton() {
+  const { connectAsync, connectors } = useConnect()
+
+  const handleSignIn = async () => {
+    const baseAccountConnector = connectors.find(
+      connector => connector.id === 'baseAccountWallet'
+    )
+
+    if (!baseAccountConnector) return
+
+    try {
+      // Generate nonce
+      const nonce = window.crypto.randomUUID().replace(/-/g, '')
+
+      // Connect and get provider
+      await connectAsync({ connector: baseAccountConnector })
+      const provider = await baseAccountConnector.getProvider()
+
+      // Perform SIWE authentication
+      const authResult = await provider.request({
+        method: 'wallet_connect',
+        params: [{
+          version: '1',
+          capabilities: {
+            signInWithEthereum: { 
+              nonce, 
+              chainId: '0x2105'
+            }
+          }
+        }]
+      })
+
+      // Extract and verify signature
+      const { accounts } = authResult
+      const { address, capabilities } = accounts[0]
+      const { message, signature } = capabilities.signInWithEthereum
+
+      // Send to backend for verification
+      await fetch('/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, message, signature })
+      })
+    } catch (error) {
+      console.error('Authentication failed:', error)
+    }
   }
 
   return (
-    <button onClick={accessProvider}>
-      Access Advanced Features
-    </button>
+    <SignInWithBaseButton
+      colorScheme="light"
+      onClick={handleSignIn}
+    />
   )
 }
 ```
 
+### 4. Complete App Example
+
+Here's a complete example integrating everything:
+
+```tsx
+// app/page.tsx
+'use client'
+import { SignInWithBase } from '../components/SignInWithBase'
+import { useAccount } from 'wagmi'
+
+export default function HomePage() {
+  const { isConnected, address } = useAccount()
+
+  return (
+    <div className="max-w-md mx-auto mt-16 p-8 bg-white border border-gray-200 rounded-lg shadow-sm">
+      <div className="text-center space-y-6">
+        <h1 className="text-2xl font-bold">My App</h1>
+        
+        {!isConnected ? (
+          <>
+            <p className="text-gray-600">
+              Sign in with your Base Account to continue
+            </p>
+            <SignInWithBase />
+          </>
+        ) : (
+          <div className="space-y-4">
+            <div className="p-4 bg-green-50 border border-green-200 rounded">
+              <h2 className="font-semibold text-green-800">Welcome!</h2>
+              <p className="text-sm text-green-700">
+                You're signed in with Base Account
+              </p>
+            </div>
+            
+            <SignInWithBase />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+```
+
+## Error Handling
+
+Handle common error scenarios:
+
+```tsx
+const handleSignIn = async () => {
+  try {
+    // ... authentication logic
+  } catch (err: any) {
+    if (err.code === 4001) {
+      setError('User rejected the sign in request')
+    } else if (err.code === -32002) {
+      setError('Sign in request already pending')
+    } else if (err.message?.includes('method_not_supported')) {
+      // Fallback for wallets that don't support wallet_connect
+      setError('Please update your wallet to use Sign in with Base')
+    } else {
+      setError('Sign in failed. Please try again.')
+    }
+  }
+}
+```
+
+## Notes
+
+- The `wallet_connect` method with `signInWithEthereum` capabilities is the recommended approach for Base Account authentication
+- For wallets that don't support `wallet_connect`, you may need to implement a fallback using `eth_requestAccounts` and `personal_sign`
+- Always verify signatures on your backend using a ERC-6492 compatible library like Viem
+- Generate nonces securely and ensure they can't be reused
+
 ## Next Steps
 
 - [Learn about Sub Accounts with Wagmi](/base-account/framework-integrations/wagmi/sub-accounts)
-- [Explore Base Account RPC methods](/base-account/reference/core/getProvider)
+- [Explore the authenticate users guide](/base-account/guides/authenticate-users)
 
 import PolicyBanner from "/snippets/PolicyBanner.mdx";
 

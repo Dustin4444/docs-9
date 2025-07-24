@@ -1,498 +1,398 @@
 ---
-title: "Sub Accounts"
-description: "Implement Base Account Sub Accounts using Privy"
+title: "Using Base Sub Accounts"
+description: "Learn how to create and manage Base Sub Accounts with Privy for streamlined user experience"
 ---
 
-Learn how to create and manage Base Account Sub Accounts using Privy's embedded wallets to improve user experience and reduce signature friction.
-
-## Prerequisites
-
-Make sure you have:
-- [Set up Privy with Base Account](/base-account/framework-integrations/privy/setup)
-- [Implemented Sign in with Base](/base-account/framework-integrations/privy/sign-in-with-base)
+Base Sub Accounts are a feature of the Base Account that allow you to streamline the user experience of using a Base Account in your app. Follow this guide to learn how to use Base Sub Accounts with Privy.
 
 ## Overview
 
-Sub Accounts are app-specific wallets with their own addresses and signing capabilities that can transact using the parent account's balance through [Spend Permissions](/base-account/improve-ux/spend-permissions). This significantly improves user experience for high-volume signature scenarios.
+By default, when a user uses their Base Account within your app, the user must authorize every signature and transaction via a passkey prompt. This may be interruptive for your app's user experience, particularly for use cases that require a high-volume of signatures or transactions, such as gaming. 
 
-Key benefits:
-- **Reduced friction**: No passkey prompts for each transaction
-- **App-specific**: Each Sub Account is unique to your application
-- **Parent account balance**: Can spend from the main wallet using Spend Permissions
-- **Seamless UX**: Users don't need to constantly approve transactions
+Sub Accounts enable you to create an Ethereum account derived from the parent Base Account that is _specific to your app_, with its own address, signing capabilities, and transaction history. This Sub Account is owned by another wallet, such as an embedded wallet or a local account, and can be configured to _not_ require an explicit (passkey) confirmation from the user on every signature and transaction.
 
-## Creating Sub Accounts
+Sub accounts can even transact with the balance of the parent account using Spend Permissions, allowing users to spend this balance without explicit passkey prompts.
 
-### 1. Set Up the Sub Account Hook
+## Prerequisites
 
-Create a custom hook to manage Sub Account operations:
+Make sure you have [set up Privy with Base Account](/base-account/framework-integrations/privy/setup) before following this guide.
+
+## Implementation
+
+### 1. Set up your React app
+
+First, ensure your app is configured to:
+- Show the Base Account as one of the external wallet options that users can use to connect to your application
+- Create embedded wallets automatically on login by setting `config.embedded.ethereum.createOnLogin` to `'all-users'`
 
 ```tsx
-// hooks/useSubAccounts.ts
-import { usePrivy } from '@privy-io/react-auth'
-import { useWallets } from '@privy-io/react-auth'
-import { useState } from 'react'
-
-export function useSubAccounts() {
-  const { authenticated } = usePrivy()
-  const { wallets } = useWallets()
-  const [isLoading, setIsLoading] = useState(false)
-
-  const baseAccountWallet = wallets.find(
-    wallet => wallet.walletClientType === 'base_account'
-  )
-
-  const embeddedWallet = wallets.find(
-    wallet => wallet.walletClientType === 'privy'
-  )
-
-  const createSubAccount = async () => {
-    if (!baseAccountWallet || !embeddedWallet) {
-      throw new Error('Base Account and embedded wallet required')
-    }
-
-    setIsLoading(true)
-    try {
-      // Switch to Base network
-      await baseAccountWallet.switchChain(8453)
-
-      // Check for existing Sub Account first
-      const existingSubAccounts = await baseAccountWallet.request({
-        method: 'wallet_getSubAccounts',
-        params: [{
-          version: '1.0',
-          chainId: '0x2105', // Base mainnet
-          from: baseAccountWallet.address,
-        }]
-      })
-
-      // Create new Sub Account if none exists
-      if (!existingSubAccounts?.subAccounts?.length) {
-        const result = await baseAccountWallet.request({
-          method: 'wallet_addSubAccount',
-          params: [{
-            version: '1.0',
-            chainId: '0x2105',
-            from: baseAccountWallet.address,
-          }]
-        })
-
-        return result?.subAccount
-      }
-
-      return existingSubAccounts.subAccounts[0]
-    } catch (error) {
-      console.error('Failed to create Sub Account:', error)
-      throw error
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const getSubAccounts = async () => {
-    if (!baseAccountWallet) return []
-
-    try {
-      const result = await baseAccountWallet.request({
-        method: 'wallet_getSubAccounts',
-        params: [{
-          version: '1.0',
-          chainId: '0x2105',
-          from: baseAccountWallet.address,
-        }]
-      })
-
-      return result?.subAccounts || []
-    } catch (error) {
-      console.error('Failed to get Sub Accounts:', error)
-      return []
-    }
-  }
-
-  return {
-    authenticated,
-    baseAccountWallet,
-    embeddedWallet,
-    createSubAccount,
-    getSubAccounts,
-    isLoading,
-  }
-}
+// app/layout.tsx
+<PrivyProvider
+    appId='insert-app-id'
+    config={{
+        appearance: {
+            walletList: ['base_account', ...otherWalletOptions],
+            // ... other appearance config
+        },
+        embedded: {
+            ethereum: {
+                createOnLogin: 'all-users'
+            }
+        },
+        // ... other provider config
+    }}
+>
+    {children}
+</PrivyProvider>
 ```
 
-### 2. Sub Account Manager Component
+This ensures that when users connect or login to your application, they have the option to use their Base Account.
 
-Create a component to manage Sub Account creation and display:
+### 2. Create or get a Sub Account
+
+After the user logs in, create a new Sub Account or get the existing Sub Account for the user that is tied to your app's domain.
+
+First, get the connected wallet instances for your user's embedded wallet and Base Account:
 
 ```tsx
-// components/SubAccountManager.tsx
-import { useSubAccounts } from '../hooks/useSubAccounts'
-import { useState, useEffect } from 'react'
+import { useWallets } from '@privy-io/react-auth';
 
-export function SubAccountManager() {
-  const { 
-    authenticated, 
-    baseAccountWallet, 
-    embeddedWallet, 
-    createSubAccount, 
-    getSubAccounts, 
-    isLoading 
-  } = useSubAccounts()
+const { wallets } = useWallets();
+const embeddedWallet = wallets.find((wallet) => wallet.walletClientType === 'privy');
+const baseAccount = wallets.find((wallet) => wallet.walletClientType === 'base_account');
+// `embeddedWallet` and `baseAccount` must be defined for users to use Sub Accounts
+```
+
+Next, switch the network of the Base Account to Base or Base Sepolia, and get the wallet's EIP-1193 provider:
+
+```tsx
+// Switching to Base Sepolia
+await baseAccount.switchChain(84532);
+const provider = await baseAccount.getEthereumProvider();
+```
+
+Then, check if the user has an existing Sub Account using the `wallet_getSubAccounts` RPC method. If the user does not have an existing Sub Account, create a new one for them using the `wallet_addSubAccount` RPC:
+
+```tsx
+// Get existing Sub Account if it exists
+const {
+  subAccounts: [existingSubAccount]
+} = await provider.request({
+  method: 'wallet_getSubAccounts',
+  params: [
+    {
+      account: baseAccount.address as `0x${string}`, // The address of your user's Base Account
+      domain: window.location.origin // The domain of your app
+    }
+  ]
+});
+
+// Use the existing Sub Account if it exists, otherwise create a new sub account
+const subaccount = existingSubAccount
+  ? existingSubAccount
+  : await provider.request({
+      method: 'wallet_addSubAccount',
+      params: [
+        {
+          version: '1',
+          account: {
+            type: 'create',
+            keys: [
+              {
+                type: 'address',
+                publicKey: embeddedWallet.address as Hex // Pass your user's embedded wallet address
+              }
+            ]
+          }
+        }
+      ]
+    });
+```
+
+### 3. Configure the SDK to use the embedded wallet for Sub Account operations
+
+Configure the Base Account SDK to use the embedded wallet to control Sub Account operations. This allows the embedded wallet to sign messages and transactions on behalf of the Sub Account, avoiding the need for a separate passkey prompt.
+
+Use the `useBaseAccountSdk` hook from Privy's React SDK to access the instance of the Base Account SDK directly, and use the SDK's `subAccount.setToOwnerAccount` method to configure the embedded wallet to sign on behalf of the Sub Account's operations:
+
+```tsx
+import { useBaseAccountSdk, toViemAccount } from '@privy-io/react-auth';
+
+// ...
+
+const { baseAccountSdk } = useBaseAccountSdk();
+const toOwnerAccount = async () => {
+    const account = await toViemAccount({ wallet: embeddedWallet });
+    return { account };
+}
+baseAccountSdk.subAccount.setToOwnerAccount(toOwnerAccount);
+```
+
+### 4. Complete Sub Account Setup
+
+Here's the complete code that showcases how to create or get an existing Sub Account for your user, and set the embedded wallet as the Sub Account's owner:
+
+```tsx
+import { useWallets, useBaseAccountSdk, toViemAccount } from '@privy-io/react-auth';
+
+// In your React component
+const { wallets } = useWallets();
+const { baseAccountSdk } = useBaseAccountSdk();
+const embeddedWallet = wallets.find((wallet) => wallet.walletClientType === 'privy');
+const baseAccount = wallets.find((wallet) => wallet.walletClientType === 'base_account');
+
+// Call this function when needed, e.g. in a button's `onClick` handler
+const createOrGetSubAccount = async () => {
+  if (!embeddedWallet) throw new Error('User does not have an embedded wallet');
+  if (!baseAccount) throw new Error('User has not connected a Base Account');
+  if (!baseAccountSdk) throw new Error('Base Account SDK not initialized');
+
+  await baseAccount.switchChain(84532); // Use 8453 for Base Mainnet
+  const provider = await baseAccount.getEthereumProvider();
+
+  // Get existing Sub Account
+  const {
+    subAccounts: [existingSubAccount]
+  } = await provider.request({
+    method: 'wallet_getSubAccounts',
+    params: [{
+      account: baseAccount.address,
+      domain: window.location.origin
+    }]
+  });
+
+  // Create new Sub Account if one does not exist
+  const subaccount = existingSubAccount
+    ? existingSubAccount
+    : await provider.request({
+        method: 'wallet_addSubAccount',
+        params: [{
+          version: '1',
+          account: {
+            type: 'create',
+            keys: [{
+              type: 'address',
+              publicKey: embeddedWallet.address
+            }]
+          }
+        }]
+      });
+
+  // Configure embedded wallet as owner
+  const toOwnerAccount = async () => {
+    const account = await toViemAccount({ wallet: embeddedWallet });
+    return { account };
+  };
+  baseAccountSdk.subAccount.setToOwnerAccount(toOwnerAccount);
+};
+```
+
+### 5. Sign messages and send transactions with the Sub Account
+
+Once configured, you can sign and send transactions with the Sub Account using the Base Account's EIP1193 provider. To ensure that signatures and transactions come from the Sub Account, for each of the following RPCs:
+
+- `personal_sign`: pass the Sub Account's address, not the parent Base Account's address, as the second parameter
+- `eth_signTypedData_v4`: pass the Sub Account's address, not the parent Base Account's address, as the first parameter  
+- `eth_sendTransaction`: set `from` in the transaction object to the Sub Account's address, not the parent Base Account's address
+
+When these methods are invoked, the embedded wallet will sign on behalf of the Sub Account, avoiding the need for an explicit passkey prompt from the user.
+
+#### Sign a message
+
+```tsx
+import { toHex } from 'viem';
+
+const message = 'Hello world';
+const signature = await baseProvider.request({
+    method: 'personal_sign',
+    params: [toHex(message), subaccount.address] // Pass the Sub Account, not parent Base Account address
+});
+```
+
+#### Send a transaction
+
+```tsx
+const txHash = await baseProvider.request({
+    method: 'eth_sendTransaction',
+    params: [{
+        from: subaccount.address, // Sub Account address
+        to: '0x...',
+        value: '0x...',
+        data: '0x...'
+    }]
+});
+```
+
+#### Send a batch of transactions
+
+```tsx
+const batchTxHash = await baseProvider.request({
+    method: 'wallet_sendCalls',
+    params: [{
+        from: subaccount.address, // Sub Account address
+        calls: [
+            {
+                to: '0x...',
+                value: '0x...',
+                data: '0x...'
+            },
+            {
+                to: '0x...',
+                value: '0x...',
+                data: '0x...'
+            }
+        ]
+    }]
+});
+```
+
+## Complete Example Component
+
+Here's a complete React component that demonstrates Sub Account creation and usage:
+
+```tsx
+import React, { useState } from 'react';
+import { useWallets, useBaseAccountSdk, toViemAccount } from '@privy-io/react-auth';
+import { toHex } from 'viem';
+
+export function SubAccountDemo() {
+  const [subAccount, setSubAccount] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [signature, setSignature] = useState('');
+
+  const { wallets } = useWallets();
+  const { baseAccountSdk } = useBaseAccountSdk();
   
-  const [subAccounts, setSubAccounts] = useState<string[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const embeddedWallet = wallets.find((wallet) => wallet.walletClientType === 'privy');
+  const baseAccount = wallets.find((wallet) => wallet.walletClientType === 'base_account');
 
-  useEffect(() => {
-    if (authenticated && baseAccountWallet) {
-      loadSubAccounts()
-    }
-  }, [authenticated, baseAccountWallet])
+  const setupSubAccount = async () => {
+    if (!embeddedWallet || !baseAccount || !baseAccountSdk) return;
 
-  const loadSubAccounts = async () => {
+    setIsLoading(true);
     try {
-      const accounts = await getSubAccounts()
-      setSubAccounts(accounts)
-    } catch (err) {
-      setError('Failed to load Sub Accounts')
-    }
-  }
+      await baseAccount.switchChain(84532); // Base Sepolia
+      const provider = await baseAccount.getEthereumProvider();
 
-  const handleCreateSubAccount = async () => {
+      // Get or create Sub Account
+      const { subAccounts: [existingSubAccount] } = await provider.request({
+        method: 'wallet_getSubAccounts',
+        params: [{
+          account: baseAccount.address,
+          domain: window.location.origin
+        }]
+      });
+
+      const subaccount = existingSubAccount || await provider.request({
+        method: 'wallet_addSubAccount',
+        params: [{
+          version: '1',
+          account: {
+            type: 'create',
+            keys: [{
+              type: 'address',
+              publicKey: embeddedWallet.address
+            }]
+          }
+        }]
+      });
+
+      // Configure embedded wallet as owner
+      const toOwnerAccount = async () => {
+        const account = await toViemAccount({ wallet: embeddedWallet });
+        return { account };
+      };
+      baseAccountSdk.subAccount.setToOwnerAccount(toOwnerAccount);
+
+      setSubAccount(subaccount);
+    } catch (error) {
+      console.error('Sub Account setup failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signMessage = async () => {
+    if (!baseAccount || !subAccount) return;
+
     try {
-      setError(null)
-      const newSubAccount = await createSubAccount()
-      if (newSubAccount) {
-        await loadSubAccounts() // Refresh the list
-      }
-    } catch (err) {
-      setError('Failed to create Sub Account')
+      const provider = await baseAccount.getEthereumProvider();
+      const sig = await provider.request({
+        method: 'personal_sign',
+        params: [toHex(message), subAccount.address]
+      });
+      setSignature(sig);
+    } catch (error) {
+      console.error('Signing failed:', error);
     }
-  }
-
-  if (!authenticated) {
-    return (
-      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-        <p className="text-yellow-700">Please log in to manage Sub Accounts</p>
-      </div>
-    )
-  }
-
-  if (!baseAccountWallet || !embeddedWallet) {
-    return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-        <p className="text-red-700">Both Base Account and embedded wallet are required for Sub Accounts</p>
-      </div>
-    )
-  }
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Sub Account Manager</h2>
-        <button
-          onClick={handleCreateSubAccount}
-          disabled={isLoading}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-        >
-          {isLoading ? 'Creating...' : 'Create Sub Account'}
-        </button>
-      </div>
+      <h2 className="text-2xl font-bold">Base Sub Account Demo</h2>
+      
+      {!subAccount ? (
+        <div>
+          <p className="mb-4">Set up a Sub Account for gasless interactions</p>
+          <button
+            onClick={setupSubAccount}
+            disabled={isLoading || !embeddedWallet || !baseAccount}
+            className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+          >
+            {isLoading ? 'Setting up...' : 'Create Sub Account'}
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="p-4 bg-green-50 border border-green-200 rounded">
+            <h3 className="font-semibold">Sub Account Ready</h3>
+            <p className="text-sm text-gray-600">Address: {subAccount.address}</p>
+          </div>
 
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-700">{error}</p>
+          <div>
+            <label className="block mb-2">Message to sign:</label>
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="w-full p-2 border rounded"
+              placeholder="Enter message to sign"
+            />
+            <button
+              onClick={signMessage}
+              disabled={!message}
+              className="mt-2 px-4 py-2 bg-green-500 text-white rounded disabled:opacity-50"
+            >
+              Sign Message
+            </button>
+          </div>
+
+          {signature && (
+            <div className="p-4 bg-gray-50 border rounded">
+              <h4 className="font-semibold mb-2">Signature:</h4>
+              <p className="text-sm font-mono break-all">{signature}</p>
+            </div>
+          )}
         </div>
       )}
-
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium">Your Sub Accounts ({subAccounts.length})</h3>
-        
-        {subAccounts.length === 0 ? (
-          <div className="p-6 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg text-center">
-            <p className="text-gray-600">No Sub Accounts found</p>
-            <p className="text-sm text-gray-500 mt-1">Create one to get started!</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {subAccounts.map((subAccount, index) => (
-              <div
-                key={subAccount}
-                className="p-4 bg-blue-50 border border-blue-200 rounded-lg"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-mono text-sm">{subAccount}</p>
-                    <p className="text-xs text-blue-600">Sub Account #{index + 1}</p>
-                  </div>
-                  <div className="w-3 h-3 bg-green-500 rounded-full" title="Active"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h4 className="font-medium mb-2">Parent Account</h4>
-        <p className="font-mono text-sm">{baseAccountWallet.address}</p>
-      </div>
     </div>
-  )
+  );
 }
 ```
 
-### 3. Sub Account Transaction Handler
+## Benefits of Sub Accounts
 
-Create a component to handle transactions using Sub Accounts:
+- **Reduced Friction**: Users don't need to approve every transaction with a passkey
+- **Better UX**: Seamless interactions for gaming and high-frequency use cases
+- **Security**: Sub Accounts are still secured by the parent Base Account
+- **Spend Permissions**: Sub Accounts can transact with the parent account's balance
 
-```tsx
-// components/SubAccountTransactions.tsx
-import { useSubAccounts } from '../hooks/useSubAccounts'
-import { useState, useEffect } from 'react'
+## Next Steps
 
-export function SubAccountTransactions() {
-  const { 
-    authenticated, 
-    embeddedWallet, 
-    getSubAccounts 
-  } = useSubAccounts()
-  
-  const [subAccounts, setSubAccounts] = useState<string[]>([])
-  const [selectedSubAccount, setSelectedSubAccount] = useState('')
-  const [recipient, setRecipient] = useState('')
-  const [amount, setAmount] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+You can combine Sub Accounts with Spend Permissions to allow the Sub Account to spend from the balance of the parent Base Account in `eth_sendTransaction` requests.
 
-  useEffect(() => {
-    if (authenticated) {
-      loadSubAccounts()
-    }
-  }, [authenticated])
-
-  const loadSubAccounts = async () => {
-    const accounts = await getSubAccounts()
-    setSubAccounts(accounts)
-    if (accounts.length > 0 && !selectedSubAccount) {
-      setSelectedSubAccount(accounts[0])
-    }
-  }
-
-  const sendTransactionFromSubAccount = async () => {
-    if (!embeddedWallet || !selectedSubAccount || !recipient || !amount) return
-
-    setIsLoading(true)
-    try {
-      // Use embedded wallet to control the Sub Account
-      // This avoids passkey prompts since embedded wallet handles signing
-      const txHash = await embeddedWallet.sendTransaction({
-        to: recipient as `0x${string}`,
-        value: amount,
-        // The transaction will be sent from the Sub Account
-        // but signed by the embedded wallet
-      })
-
-      console.log('Transaction sent from Sub Account:', txHash)
-      alert(`Transaction successful: ${txHash}`)
-      
-      // Reset form
-      setRecipient('')
-      setAmount('')
-    } catch (error) {
-      console.error('Sub Account transaction failed:', error)
-      alert('Transaction failed')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  if (!authenticated || subAccounts.length === 0) {
-    return (
-      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-        <p className="text-yellow-700">
-          Please create a Sub Account first to send transactions
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Send from Sub Account</h3>
-      
-      <div>
-        <label className="block mb-2 text-sm font-medium">Sub Account:</label>
-        <select
-          value={selectedSubAccount}
-          onChange={(e) => setSelectedSubAccount(e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded-lg"
-        >
-          {subAccounts.map((account, index) => (
-            <option key={account} value={account}>
-              Sub Account #{index + 1}: {account.slice(0, 10)}...
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block mb-2 text-sm font-medium">Recipient:</label>
-        <input
-          type="text"
-          value={recipient}
-          onChange={(e) => setRecipient(e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded-lg"
-          placeholder="0x..."
-        />
-      </div>
-
-      <div>
-        <label className="block mb-2 text-sm font-medium">Amount (ETH):</label>
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded-lg"
-          placeholder="0.01"
-          step="0.001"
-        />
-      </div>
-
-      <button
-        onClick={sendTransactionFromSubAccount}
-        disabled={!selectedSubAccount || !recipient || !amount || isLoading}
-        className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-      >
-        {isLoading ? 'Sending...' : 'Send from Sub Account'}
-      </button>
-
-      <div className="text-sm text-gray-600">
-        <p>💡 <strong>Note:</strong> This transaction will be sent from your Sub Account using your embedded wallet for signing, avoiding passkey prompts.</p>
-      </div>
-    </div>
-  )
-}
-```
-
-### 4. Complete Sub Account App
-
-Combine all components into a comprehensive Sub Account manager:
-
-```tsx
-// components/SubAccountApp.tsx
-import { SubAccountManager } from './SubAccountManager'
-import { SubAccountTransactions } from './SubAccountTransactions'
-import { usePrivy } from '@privy-io/react-auth'
-
-export function SubAccountApp() {
-  const { authenticated } = usePrivy()
-
-  if (!authenticated) {
-    return (
-      <div className="max-w-2xl mx-auto p-8 text-center">
-        <h1 className="text-2xl font-bold mb-4">Sub Accounts with Privy</h1>
-        <p className="text-gray-600">Please log in to manage Sub Accounts</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="max-w-4xl mx-auto p-8 space-y-8">
-      <h1 className="text-3xl font-bold text-center">Sub Accounts Manager</h1>
-      
-      <div className="grid md:grid-cols-2 gap-8">
-        <SubAccountManager />
-        <SubAccountTransactions />
-      </div>
-
-      <div className="p-6 bg-gray-50 rounded-lg">
-        <h3 className="text-lg font-semibold mb-3">How Sub Accounts Work</h3>
-        <ul className="space-y-2 text-sm text-gray-700">
-          <li>• <strong>App-specific:</strong> Each Sub Account is unique to your application</li>
-          <li>• <strong>Embedded wallet signing:</strong> Uses your embedded wallet to avoid passkey prompts</li>
-          <li>• <strong>Parent balance:</strong> Can spend from your main wallet using Spend Permissions</li>
-          <li>• <strong>Improved UX:</strong> Reduces transaction friction for frequent actions</li>
-        </ul>
-      </div>
-    </div>
-  )
-}
-```
-
-## Advanced Configuration
-
-### Setting Up Spend Permissions
-
-Configure Spend Permissions to allow Sub Accounts to spend from the parent account:
-
-```tsx
-// utils/spendPermissions.ts
-export const createSpendPermission = async (
-  baseAccountWallet: any,
-  subAccountAddress: string,
-  spendLimit: string
-) => {
-  try {
-    const result = await baseAccountWallet.request({
-      method: 'coinbase_fetchPermissions',
-      params: [{
-        account: subAccountAddress,
-        spender: subAccountAddress,
-        token: '0x0000000000000000000000000000000000000000', // ETH
-        allowance: spendLimit,
-      }]
-    })
-
-    return result
-  } catch (error) {
-    console.error('Failed to create spend permission:', error)
-    throw error
-  }
-}
-```
-
-### Error Handling
-
-Implement comprehensive error handling:
-
-```tsx
-export function SubAccountErrorBoundary({ children }: { children: React.ReactNode }) {
-  const [error, setError] = useState<string | null>(null)
-
-  const handleError = (error: Error) => {
-    console.error('Sub Account error:', error)
-    
-    if (error.message.includes('User rejected')) {
-      setError('Transaction was cancelled by user')
-    } else if (error.message.includes('insufficient funds')) {
-      setError('Insufficient funds for this transaction')
-    } else {
-      setError('An unexpected error occurred')
-    }
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-        <p className="text-red-700">{error}</p>
-        <button
-          onClick={() => setError(null)}
-          className="mt-2 px-3 py-1 bg-red-500 text-white rounded text-sm"
-        >
-          Dismiss
-        </button>
-      </div>
-    )
-  }
-
-  return <>{children}</>
-}
-```
-
-## Learn More
-
-- [Sub Accounts overview](/base-account/improve-ux/sub-accounts)
-- [Spend Permissions](/base-account/improve-ux/spend-permissions)
-- [Privy External Wallets Documentation](https://docs.privy.io/recipes/react/external-wallets/base-sub-accounts)
+For more advanced Sub Account features and Spend Permissions, refer to the [Base Account Sub Accounts guide](/base-account/improve-ux/sub-accounts).
 
 import PolicyBanner from "/snippets/PolicyBanner.mdx";
 
